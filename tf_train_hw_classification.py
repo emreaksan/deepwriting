@@ -1,4 +1,5 @@
 import pickle
+import json
 import sys
 import time
 import os
@@ -42,16 +43,16 @@ def train(config):
     # Create a tensorflow sub-graph that loads batches of samples.
     if config.get('use_bucket_feeder', True) and training_dataset.is_dynamic:
         bucket_edges = training_dataset.get_seq_len_histogram(num_bins=15, collapse_first_and_last_bins=[2,-2])
-        data_feeder = DataFeederTF(training_dataset, config['num_epochs'], config['batch_size'], queue_capacity=1024)
+        data_feeder = DataFeederTF(training_dataset, config['num_epochs'], config['batch_size'], queue_capacity=512)
         sequence_length, inputs, targets = data_feeder.batch_queue_bucket(bucket_edges,
                                                                           dynamic_pad=training_dataset.is_dynamic,
                                                                           queue_capacity=300,
-                                                                          queue_threads=8)
+                                                                          queue_threads=4)
     else:
-        data_feeder = DataFeederTF(training_dataset, config['num_epochs'], config['batch_size'], queue_capacity=1024)
+        data_feeder = DataFeederTF(training_dataset, config['num_epochs'], config['batch_size'], queue_capacity=512)
         sequence_length, inputs, targets = data_feeder.batch_queue(dynamic_pad=training_dataset.is_dynamic,
                                                                    queue_capacity=512,
-                                                                   queue_threads=8)
+                                                                   queue_threads=4)
 
     if config.get('use_staging_area', False):
         staging_area = TFStagingArea([sequence_length, inputs, targets], device_name="/gpu:0")
@@ -71,7 +72,7 @@ def train(config):
 
     # Validation model.
     if config.get('validate_model', False):
-        validation_dataset = Dataset_cls(config['validation_data'], use_bow_labels=config.get('use_bow_labels', False), data_augmentation=config.get('data_augmentation', False))
+        validation_dataset = Dataset_cls(config['validation_data'], use_bow_labels=config.get('use_bow_labels', False), data_augmentation=False)
         num_validation_iterations = int(validation_dataset.num_samples/config['batch_size'])
         print("# validation steps per epoch: " + str(num_validation_iterations))
         assert not (num_validation_iterations == 0), "Not enough validation samples."
@@ -79,7 +80,7 @@ def train(config):
         valid_data_feeder = DataFeederTF(validation_dataset,
                                          config['num_epochs'],
                                          config['batch_size'],
-                                         queue_capacity=1024,
+                                         queue_capacity=512,
                                          shuffle=False)
 
         valid_sequence_length, valid_inputs, valid_targets = valid_data_feeder.batch_queue(
@@ -149,7 +150,7 @@ def train(config):
         if config['checkpoint_id'] is None:
             checkpoint_path = tf.train.latest_checkpoint(config['model_dir'])
         else:
-            checkpoint_path = os.path.join(config['model_dir'], config_dict['checkpoint_id'])
+            checkpoint_path = os.path.join(config['model_dir'], config['checkpoint_id'])
 
         print("Continue training with model " + checkpoint_path)
         saver.restore(sess, checkpoint_path)
@@ -159,7 +160,7 @@ def train(config):
     else:
         # Fresh start
         # Create a unique output directory for this experiment.
-        config_dict['model_dir'] = get_model_dir_timestamp(base_path=config['model_save_dir'], prefix="tf",
+        config['model_dir'] = get_model_dir_timestamp(base_path=config['model_save_dir'], prefix="tf",
                                                            suffix=config['experiment_name'], connector="-")
         print("Saving to {}\n".format(config['model_dir']))
         start_epoch = 1
@@ -186,8 +187,12 @@ def train(config):
         tf.summary.scalar("training/queue", math_ops.cast(data_feeder.input_queue.size(), dtypes.float32)*(
         1./data_feeder.queue_capacity), collections=["training_status"])
 
-    # Save configuration.
+    # Save configuration: pickle and json dump.
     pickle.dump(config, open(os.path.join(config['model_dir'], 'config.pkl'), 'wb'))
+    try:
+        json.dump(config, open(os.path.join(config['model_dir'], 'config.json'), 'w'), indent=4, sort_keys=True)
+    except:
+        pass
 
     # Create lists of training and validation graph operations for session.run. Note that models create them.
     training_summary = tf.summary.merge_all('training_status')
@@ -205,6 +210,7 @@ def train(config):
             validation_run_ops.append(valid_staging_area.preload_op)
             for i in range(256):
                 _ = sess.run(valid_staging_area.preload_op, feed_dict={})
+
     for epoch in range(start_epoch, config['num_epochs'] + 1):
         for epoch_step in range(num_training_iterations):
             start_time = time.perf_counter()
@@ -243,6 +249,8 @@ def train(config):
 
     try:
         sess.run(data_feeder.input_queue.close(cancel_pending_enqueues=True))
+        if config.get('validate_model', False):
+            sess.run(valid_data_feeder.input_queue.close(cancel_pending_enqueues=True))
         coord.request_stop()
         coord.join(queue_threads, stop_grace_period_secs=5)
     except:

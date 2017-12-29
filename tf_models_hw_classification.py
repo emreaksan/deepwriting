@@ -84,6 +84,11 @@ class RNNClassifier():
         self.build_output_layer()
         self.build_loss()
         self.accumulate_loss()
+
+        # Add accuracy into `ops_loss` dictionary after `loss` op is created. Accuracy will be printed in status
+        # messages. This should be done after `accumulate_loss` and before `create_scalar_summary`.
+        self.ops_loss['accuracy'] = self.accuracy
+
         self.create_scalar_summary()
         self.log_num_parameters()
 
@@ -107,6 +112,8 @@ class RNNClassifier():
                 flat_inputs_hidden = fully_connected_layer(flat_inputs_hidden, **self.input_layer_config)
 
             self.inputs_hidden = self.temporal_tensor(flat_inputs_hidden)
+        else:
+            self.inputs_hidden = self.inputs
 
 
     def build_rnn_layer(self):
