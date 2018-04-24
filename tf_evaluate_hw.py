@@ -8,7 +8,7 @@ import pickle
 from scipy.misc import imsave
 
 from tf_dataset_hw import *
-from tf_models import VRNN, VRNNGMM
+from tf_models import VRNNGMM
 from tf_models_hw import HandwritingVRNNGmmModel, HandwritingVRNNModel
 from  utils_visualization import plot_latent_variables, plot_latent_categorical_variables, plot_matrix_and_get_image, plot_and_get_image
 import visualize_hw as visualize
@@ -28,29 +28,9 @@ keep_style_states = [0, 1, 0] # input, latent, output rnn cell states.
 ref_len = None # Use the whole sequence.
 seq_len = 800
 gmm_num_samples = 500 # For run_gmm_eval only.
-# text_list = ["I am a synthetic sample", "I can write this line in so many styles."]
-conditional_texts = ["monopoly of lead", "how in caves a", "interests of a moder", "Punctuation, test."]
-# Stress test (i.e., abstract of the paper.)
-stress_text_list = [
-    "Digital ink promises to combine the flexibility and aesthetics",
-    "of handwriting and the ability to process, search and edit digital text.",
-    "Character recognition converts handwritten text into a digital",
-    "representation, albeit at the cost of losing style and personalized",
-    "appearance due to the technical difficulties of separating the",
-    "interwoven components of content and style.",
-    "In this paper, we propose a novel generative neural network architecture",
-    "that is capable of disentangling style from content",
-    "and thus making digital ink editable. Our model can synthesize arbitrary",
-    "text, while giving users control over the visual appearance (style).",
-    "For example, allowing for style transfer without changing the content,",
-    "editing of digital ink at the character level and other application scenarios",
-    "such as spell-checking and correction of handwritten text.",
-    "We furthermore contribute a new dataset of handwritten",
-    "text with fine-grained annotations at the character level",
-    "and report results from an initial user evaluation."
-    ]
-
-reference_sample_ids = [107, 226, 263, 696]
+#conditional_texts = ["monopoly of lead", "how in caves a", "interests of a moder"]
+conditional_texts = ["I am a synthetic sample", "I can write this line in so many styles."]
+reference_sample_ids = [107, 226, 696]
 
 # Sampling output options
 plot_eoc = True
@@ -250,8 +230,9 @@ def do_evaluation(config, qualitative_analysis=True, quantitative_analysis=True,
                         if save_plots:
                             plot_eval_details(biased_sampling_results[0], synthetic_sample, config['eval_dir'], save_name)
 
-                        # Without beautification.
-                        keyword_args['use_sample_mean'] = False
+                        # Without beautification: set False
+                        # Apply beautification: set True.
+                        keyword_args['use_sample_mean'] = True
                         biased_sampling_results = model.sample_biased(session=sess, seq_len=seq_len,
                                                                       prev_state=inference_results[0]['state'],
                                                                       prev_sample=stroke_sample,

@@ -103,7 +103,7 @@ def kld_normal_isotropic(mu1, sigma1, mu2, sigma2, reduce_sum=False):
         result = tf.reduce_sum(0.5 * (
             2 * tf.log(tf.maximum(1e-9, sigma2))
             - 2 * tf.log(tf.maximum(1e-9, sigma1))
-            + (tf.square(sigma1) + tf.square(mu1 - mu2)) / tf.maximum(1e-9, (tf.square(sigma2))) - 1), keep_dims=True, axis=-1)
+            + (tf.square(sigma1) + tf.square(mu1 - mu2)) / tf.maximum(1e-9, (tf.square(sigma2))) - 1), keepdims=True, axis=-1)
 
         if reduce_sum is False:
             return result

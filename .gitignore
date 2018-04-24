@@ -99,3 +99,11 @@ ENV/
 
 # mypy
 .mypy_cache/
+
+# pycharm
+.idea
+
+# Training
+data/
+runs/
+runs_evaluation/
