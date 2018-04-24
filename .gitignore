@@ -104,6 +104,5 @@ ENV/
 .idea
 
 # Training
-data/
 runs/
 runs_evaluation/
