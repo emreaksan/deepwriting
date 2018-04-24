@@ -318,7 +318,8 @@ if __name__ == '__main__':
 
     if args.model_id is not None:
         # Restore
-        config_dict = pickle.load(open(os.path.join(args.model_save_dir, args.model_id, 'config.pkl'), 'rb'))
+        #config_dict = pickle.load(open(os.path.join(args.model_save_dir, args.model_id, 'config.pkl'), 'rb'))
+        config_dict = json.load(open(os.path.abspath(os.path.join(args.model_save_dir, args.model_id, 'config.json')), 'r'))
         # in case folder is renamed.
         config_dict['model_dir'] = os.path.join(args.model_save_dir, args.model_id)
         config_dict['checkpoint_id'] = args.checkpoint_id

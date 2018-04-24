@@ -4,7 +4,7 @@ import numpy as np
 import sys
 import os
 import argparse
-import pickle
+import json
 from scipy.misc import imsave
 
 from tf_dataset_hw import *
@@ -242,7 +242,6 @@ def do_evaluation(config, qualitative_analysis=True, quantitative_analysis=True,
                         synthetic_sample = validation_dataset.undo_normalization(biased_sampling_results[0]['output_sample'][0], detrend_sample=False)
                         if save_plots:
                             plot_eval_details(biased_sampling_results[0], synthetic_sample, config['eval_dir'], save_name)
-                        keyword_args['use_sample_mean'] = True
 
                     if run_unbiased_sampling:
                         unbiased_sampling_results = model.sample_unbiased(session=sess, seq_len=seq_len, **keyword_args)
@@ -253,13 +252,12 @@ def do_evaluation(config, qualitative_analysis=True, quantitative_analysis=True,
                             plot_eval_details(unbiased_sampling_results[0], synthetic_sample, config['eval_dir'], save_name)
 
                         # Without beautification.
-                        keyword_args['use_sample_mean'] = False
+                        keyword_args['use_sample_mean'] = True
                         unbiased_sampling_results = model.sample_unbiased(session=sess, seq_len=seq_len, **keyword_args)
                         save_name = 'synthetic_unbiased_sampled(' + str(text_id) + ')'
                         synthetic_sample = validation_dataset.undo_normalization(unbiased_sampling_results[0]['output_sample'][0], detrend_sample=False)
                         if save_plots:
                             plot_eval_details(unbiased_sampling_results[0], synthetic_sample, config['eval_dir'],save_name)
-                        keyword_args['use_sample_mean'] = True
 
                 else:
                     if run_biased_sampling:
@@ -294,7 +292,8 @@ if __name__ == '__main__':
     parser.add_argument('-V', '--verbose', dest='verbose', type=int, default=1, help='Verbosity')
     args = parser.parse_args()
 
-    config_dict = pickle.load(open(os.path.join(args.model_save_dir, args.model_id, 'config.pkl'), 'rb'))
+    #config_dict = pickle.load(open(os.path.join(args.model_save_dir, args.model_id, 'config.pkl'), 'rb'))
+    config_dict = json.load(open(os.path.abspath(os.path.join(args.model_save_dir, args.model_id, 'config.json')), 'r'))
     # in case folder is renamed.
     config_dict['model_dir'] = os.path.join(args.model_save_dir, args.model_id)
     config_dict['checkpoint_id'] = args.checkpoint_id
