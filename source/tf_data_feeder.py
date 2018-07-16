@@ -43,7 +43,6 @@ class DataFeederTF(object):
         self.enqueue_op = self.input_queue.enqueue(self.queue_placeholders)
         self.dequeue_op = self.input_queue.dequeue()
 
-
     def batch_queue(self, dynamic_pad=True, queue_capacity=512, queue_threads=4, name="batch_generator"):
         """
         A plain feeder is used and range of sequence lengths in a batch will be arbitrary.
@@ -95,7 +94,6 @@ class DataFeederTF(object):
                                     name=name)
         return self.batch
 
-
     def __enqueue(self, tf_session, tf_coord):
         """
         while (self.epoch < self.num_epochs) and (not self.terminated):
@@ -116,10 +114,11 @@ class DataFeederTF(object):
             except tf.errors.CancelledError:
                 pass
 
-
     def init(self, tf_session, tf_coord):
+        # TODO: it is not multi-threaded.
         self.enqueue_threads = threading.Thread(target=self.__enqueue, args=[tf_session, tf_coord])
         self.enqueue_threads.start()
+
 
 class TFStagingArea(object):
 

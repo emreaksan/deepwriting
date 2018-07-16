@@ -376,12 +376,11 @@ class HandWritingClassificationDataset(HandWritingDatasetConditional):
         if self.bow_target:
             self.target_dims = [self.alphabet_size, 1, 1]  # char_labels, end-of-character, sow
         else:
-            self.target_dims = [self.alphabet_size, 1] #char_labels, end-of-character
+            self.target_dims = [self.alphabet_size, 1] # char_labels, end-of-character
 
         # sequence length, strokes, targets
         # The dimensions with None will be padded if sequence_length isn't passed.
         self.sample_shape = [[], [self.sequence_length, sum(self.input_dims)], [self.sequence_length, sum(self.target_dims)]]
-
 
     def sample_generator(self):
         """
@@ -406,7 +405,6 @@ class HandWritingClassificationDataset(HandWritingDatasetConditional):
                 else:
                     stroke_augmented = stroke
                 yield [stroke.shape[0], stroke_augmented, np.float32(np.hstack([char_label, np.expand_dims(eoc_label,-1)]))]
-
 
     def fetch_sample(self, sample_idx):
         """

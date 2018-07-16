@@ -11,6 +11,7 @@ class HandWritingDatasetTF(HandWritingDataset):
         # Add tensorflow data types.
         self.sample_tf_type = [tf.int32, tf.float32, tf.float32]
 
+
 class HandWritingDatasetConditionalTF(HandWritingDatasetConditional):
     """
     Tensorflow extension to HandWritingDataset class.

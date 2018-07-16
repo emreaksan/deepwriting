@@ -10,7 +10,7 @@ We collected data from 94 authors by using [IAMOnDB](http://www.fki.inf.unibe.ch
 
 ## Pretrained Model
 1. You can download a pretrained model from [our project page](https://ait.ethz.ch/projects/2018/deepwriting/downloads/tf-1514981744-deepwriting_synthesis_model.tar.gz).
-2. Either move under `<repository_path>/runs/` or update `validation data path.` in config.json. 
+2. Either move under `<repository_path>/runs/` or update `validation data path.` in config.json.
 3. You can run
 ```
 python tf_evaluate_hw.py -S <path_to_model_folder> -M tf-1514981744-deepwriting_synthesis_model -QL
@@ -18,8 +18,11 @@ python tf_evaluate_hw.py -S <path_to_model_folder> -M tf-1514981744-deepwriting_
 
 
 ## Dependencies
-1. Numpy
+1. numpy
 2. Tensorflow 1.2+ (not sure if earlier versions work.)
-3. Matplotlib
+3. matplotlib
 4. OpenCV (pip install opencv-python is enough)
 5. svgwrite
+6. scipy
+7. sklearn
+8. Pillow

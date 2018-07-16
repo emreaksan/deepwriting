@@ -106,3 +106,4 @@ ENV/
 # Training
 runs/
 runs_evaluation/
+data/

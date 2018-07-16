@@ -14,6 +14,7 @@ Model functionality is decomposed into basic functions (see build_graph method) 
 be implemented by inheriting from the vanilla architecture.
 """
 
+
 class VRNN():
     def __init__(self, config, input_op, input_seq_length_op, target_op, input_dims, target_dims, reuse, batch_size=-1, mode="training"):
 
@@ -139,21 +140,21 @@ class VRNN():
             # TODO: Use dataset object to parse the concatenated targets.
             targets_mu = self.target_pieces[0]
 
-            if not self.reconstruction_loss_key in self.ops_loss:
+            if self.reconstruction_loss_key not in self.ops_loss:
                 with tf.name_scope('reconstruction_loss'):
-                    if self.reconstruction_loss == 'nll_normal':
-                        # Gaussian log likelihood loss.
-                        self.ops_loss[self.reconstruction_loss_key] = -self.reconstruction_loss_weight*self.reduce_loss_func(self.seq_loss_mask*tf_loss.logli_normal_isotropic(targets_mu, self.out_mu, self.out_sigma, reduce_sum=False))
+                    # Gaussian log likelihood loss.
+                    if self.reconstruction_loss == 'nll_normal_iso':
+                        self.ops_loss[self.reconstruction_loss_key] = -self.reconstruction_loss_weight*self.reduce_loss_func(self.seq_loss_mask*tf_loss.logli_normal_diag_cov(targets_mu, self.out_mu, self.out_sigma, reduce_sum=False))
+                    # L1 norm.
                     elif self.reconstruction_loss == "l1":
-                        # L1 norm.
                         self.ops_loss[self.reconstruction_loss_key] = self.reconstruction_loss_weight*self.reduce_loss_func(self.seq_loss_mask*tf.losses.absolute_difference(targets_mu, self.out_mu, reduction='none'))
+                    # Mean-squared error.
                     elif self.reconstruction_loss == "mse":
-                        # Mean-squared error.
                         self.ops_loss[self.reconstruction_loss_key] = self.reconstruction_loss_weight*self.reduce_loss_func(self.seq_loss_mask*tf.losses.mean_squared_error(targets_mu, self.out_mu, reduction='none'))
                     else:
                         raise Exception("Undefined loss.")
 
-            if not "loss_kld" in self.ops_loss:
+            if "loss_kld" not in self.ops_loss:
                 with tf.name_scope('kld_loss'):
                     self.ops_loss['loss_kld'] = self.kld_loss_weight*self.reduce_loss_func(self.seq_loss_mask*tf_loss.kld_normal_isotropic(self.q_mu, self.q_sigma, self.p_mu, self.p_sigma, reduce_sum=False))
 
@@ -164,7 +165,6 @@ class VRNN():
         for _, loss_op in self.ops_loss.items():
             self.loss += loss_op
         self.ops_loss['total_loss'] = self.loss
-
 
     def log_loss(self, eval_loss, step=0, epoch=0, time_elapsed=None, prefix=""):
         loss_format = prefix + "{}/{} \t Total: {:.4f} \t"
@@ -181,7 +181,6 @@ class VRNN():
         else:
             print(loss_format.format(*loss_entries))
 
-
     def log_num_parameters(self):
         num_param = 0
         for v in tf.global_variables():
@@ -189,7 +188,6 @@ class VRNN():
 
         self.num_parameters = num_param
         print("# of parameters: " + str(num_param))
-
 
     def create_summary_plots(self):
         """
@@ -319,7 +317,6 @@ class VRNN():
         eval_results = session.run(eval_op_list, feed)
         return eval_results
 
-
     def sample_biased(self, session, seq_len, prev_state, prev_sample=None, ops_eval=None, **kwargs):
         """
         Initializes the model by using state of a real sample.
@@ -441,22 +438,21 @@ class VRNNGMM(VRNN):
         # Mask for precise loss calculation.
         self.seq_loss_mask = tf.expand_dims(tf.sequence_mask(lengths=self.input_seq_length, maxlen=tf.reduce_max(self.input_seq_length), dtype=tf.float32), -1)
 
-
     def build_loss(self):
         if self.is_training or self.is_validation:
             # TODO: Use dataset object to parse the concatenated targets.
             targets_mu = self.target_pieces[0]
 
-            if not self.reconstruction_loss_key in self.ops_loss:
+            if self.reconstruction_loss_key not in self.ops_loss:
                 with tf.name_scope('reconstruction_loss'):
-                    if self.reconstruction_loss == 'nll_normal':
-                        # Gaussian log likelihood loss.
-                        self.ops_loss[self.reconstruction_loss_key] = -self.reconstruction_loss_weight*self.reduce_loss_func(self.seq_loss_mask*tf_loss.logli_normal_isotropic(targets_mu, self.out_mu, self.out_sigma, reduce_sum=False))
+                    # Gaussian log likelihood loss.
+                    if self.reconstruction_loss == 'nll_normal_iso':
+                        self.ops_loss[self.reconstruction_loss_key] = -self.reconstruction_loss_weight*self.reduce_loss_func(self.seq_loss_mask*tf_loss.logli_normal_diag_cov(targets_mu, self.out_mu, self.out_sigma, reduce_sum=False))
+                    # L1 norm.
                     elif self.reconstruction_loss == "l1":
-                        # L1 norm.
                         self.ops_loss[self.reconstruction_loss_key] = self.reconstruction_loss_weight*self.reduce_loss_func(self.seq_loss_mask*tf.losses.absolute_difference(targets_mu, self.out_mu, reduction='none'))
+                    # Mean-squared error.
                     elif self.reconstruction_loss == "mse":
-                        # Mean-squared error.
                         self.ops_loss[self.reconstruction_loss_key] = self.reconstruction_loss_weight*self.reduce_loss_func(self.seq_loss_mask*tf.losses.mean_squared_error(targets_mu, self.out_mu, reduction='none'))
                     else:
                         raise Exception("Undefined loss.")

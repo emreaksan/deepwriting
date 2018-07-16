@@ -10,34 +10,37 @@ from scipy.misc import imsave
 from tf_dataset_hw import *
 from tf_models import VRNNGMM
 from tf_models_hw import HandwritingVRNNGmmModel, HandwritingVRNNModel
-from  utils_visualization import plot_latent_variables, plot_latent_categorical_variables, plot_matrix_and_get_image, plot_and_get_image
+from utils_visualization import plot_latent_variables, plot_latent_categorical_variables, plot_matrix_and_get_image, plot_and_get_image
 import visualize_hw as visualize
 
 # Sampling options
-run_gmm_eval = False
-run_original_sample = False
-run_reconstruction = False
-run_biased_sampling = True
-run_unbiased_sampling = True
-run_colored_png_output = False
+run_gmm_eval = False  # Visualize GMM latent space by using random samples and T-SNE.
+run_original_sample = True  # Save an image of reference samples (see reference_sample_ids).
+run_reconstruction = False  # Reconstruct reference samples and save reconstruction results.
+run_biased_sampling = True  # Use a real reference sample to infer style (see reference_sample_ids) and synthesize the given text (see conditional_texts).
+run_unbiased_sampling = True  # Use a random style to synthesize the given text (see conditional_texts).
+run_colored_png_output = False  # Save colored images (see line 47). For now we use end-of-character probabilities to assign new colors.
 
 # Sampling hyper-parameters
-eoc_threshold = 0.1
+eoc_threshold = 0.05
 cursive_threshold = 0.005
-keep_style_states = [0, 1, 0] # input, latent, output rnn cell states.
-ref_len = None # Use the whole sequence.
-seq_len = 800
-gmm_num_samples = 500 # For run_gmm_eval only.
-#conditional_texts = ["monopoly of lead", "how in caves a", "interests of a moder"]
+ref_len = None  # Use the whole sequence.
+seq_len = 800  # Maximum number of steps.
+gmm_num_samples = 500  # For run_gmm_eval only.
+
+# Text to be written by the model.
 conditional_texts = ["I am a synthetic sample", "I can write this line in so many styles."]
+# Indices of reference style samples from validation split.
 reference_sample_ids = [107, 226, 696]
+# Concatenate reference sample with synthetic sample to make a direct comparison.
+concat_ref_and_synthetic_samples = False
 
 # Sampling output options
-plot_eoc = True
-plot_latent_norm = False
-plot_latent_vars = False
-save_plots = True
-show_plots = False
+plot_eoc = False  # Plot end-of-character probabilities.
+plot_latent_vars = False  # Plot a matrix of approximate posterior and prior mu values.
+save_plots = True  # Save plots as image.
+show_plots = False  # Show plots in a window.
+
 
 def plot_eval_details(data_dict, sample, save_dir, save_name):
     visualize.draw_stroke_svg(sample, factor=0.001, svg_filename=os.path.join(save_dir, save_name + '.svg'))
@@ -45,8 +48,8 @@ def plot_eval_details(data_dict, sample, save_dir, save_name):
     plot_data = {}
     if run_colored_png_output:
         synthetic_eoc = np.squeeze(data_dict['out_eoc'])
-        visualize.draw_stroke_cv2_colored(sample, factor=0.001, color_labels=synthetic_eoc > eoc_threshold,
-                                          black_zero=False, output_path=os.path.join(save_dir, save_name + 'colored.png'))
+        visualize.draw_stroke_svg(sample, factor=0.001, color_labels=synthetic_eoc > eoc_threshold,
+                                  svg_filename=os.path.join(save_dir, save_name + '_colored.svg'))
 
     if plot_latent_vars and 'p_mu' in data_dict:
         plot_data['p_mu'] = np.transpose(data_dict['p_mu'][0], [1, 0])
@@ -79,6 +82,7 @@ def plot_eval_details(data_dict, sample, save_dir, save_name):
 
     return plot_data
 
+
 def do_evaluation(config, qualitative_analysis=True, quantitative_analysis=True, verbose=0):
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
@@ -93,7 +97,7 @@ def do_evaluation(config, qualitative_analysis=True, quantitative_analysis=True,
     elif issubclass(Dataset_cls, HandWritingDataset):
         validation_dataset = Dataset_cls(config['validation_data'], var_len_seq=True)
     else:
-        raise("Unknown dataset class.")
+        raise Exception("Unknown dataset class.")
 
     strokes = tf.placeholder(tf.float32, shape=[batch_size, data_sequence_length, sum(validation_dataset.input_dims)])
     targets = tf.placeholder(tf.float32, shape=[batch_size, data_sequence_length, sum(validation_dataset.target_dims)])
@@ -151,9 +155,10 @@ def do_evaluation(config, qualitative_analysis=True, quantitative_analysis=True,
 
         gmm_mus, gmm_sigmas = model.evaluate_gmm_latent_space(sess)
 
-        gmm_component_ids = [2,3,11,12,13,14,15,39,40]
+        # We have ~70 components. Select a subset of them manually.
+        gmm_component_ids = [2, 3, 11, 12, 13, 14, 15, 39, 40]
         gmm_legend_labels = ["1", "2", "a", "b", "c", "d", "e", "C", "D"]
-        num_components = len(gmm_component_ids) #gmm_mus.shape[0]
+        num_components = len(gmm_component_ids)
         size_components = gmm_mus.shape[1]
 
         gmm_samples = np.zeros((num_components*gmm_num_samples,size_components))
@@ -168,11 +173,9 @@ def do_evaluation(config, qualitative_analysis=True, quantitative_analysis=True,
         colors = plt.cm.jet(np.linspace(0, 1, num_components))
 
         Y = manifold.TSNE(n_components=2, init='pca', random_state=0).fit_transform(gmm_samples)
-        #Y = decomposition.TruncatedSVD(n_components=2).fit_transform(gmm_samples)
 
         fig = plt.figure(figsize=(15, 8))
         ax = fig.add_subplot(1, 1, 1)
-
 
         current_plot_range = 0
         previous_plot_range = 0
@@ -190,7 +193,7 @@ def do_evaluation(config, qualitative_analysis=True, quantitative_analysis=True,
         plt.axis('tight')
         plt.show()
 
-    keyword_args = {}
+    keyword_args = dict()
     keyword_args['conditional_inputs'] = None
     keyword_args['eoc_threshold'] = eoc_threshold
     keyword_args['cursive_threshold'] = cursive_threshold
@@ -200,6 +203,7 @@ def do_evaluation(config, qualitative_analysis=True, quantitative_analysis=True,
         pass
 
     if qualitative_analysis:
+        print("Generating samples...")
         for real_img_idx in reference_sample_ids:
             _, stroke_model_input, _ = validation_dataset.fetch_sample(real_img_idx)
             stroke_sample = stroke_model_input[:, :, 0:3]
@@ -215,6 +219,11 @@ def do_evaluation(config, qualitative_analysis=True, quantitative_analysis=True,
                 svg_path = os.path.join(config['eval_dir'], "reconstructed_image_" + str(real_img_idx) + '.svg')
                 visualize.draw_stroke_svg(validation_dataset.undo_normalization(inference_results[0]['output_sample'][0], detrend_sample=False), factor=0.001, svg_filename=svg_path)
 
+            if concat_ref_and_synthetic_samples:
+                reference_sample_in_img = stroke_sample
+            else:
+                reference_sample_in_img = None
+
             # Conditional handwriting synthesis.
             for text_id, text in enumerate(conditional_texts):
                 keyword_args['conditional_inputs'] = text
@@ -222,7 +231,7 @@ def do_evaluation(config, qualitative_analysis=True, quantitative_analysis=True,
                     if run_biased_sampling:
                         biased_sampling_results = model.sample_biased(session=sess, seq_len=seq_len,
                                                                       prev_state=inference_results[0]['state'],
-                                                                      prev_sample=stroke_sample,
+                                                                      prev_sample=reference_sample_in_img,
                                                                       **keyword_args)
 
                         save_name = 'synthetic_biased_ref(' + str(real_img_idx) + ')_(' + str(text_id) + ')'
@@ -235,7 +244,7 @@ def do_evaluation(config, qualitative_analysis=True, quantitative_analysis=True,
                         keyword_args['use_sample_mean'] = True
                         biased_sampling_results = model.sample_biased(session=sess, seq_len=seq_len,
                                                                       prev_state=inference_results[0]['state'],
-                                                                      prev_sample=stroke_sample,
+                                                                      prev_sample=reference_sample_in_img,
                                                                       **keyword_args)
 
                         save_name = 'synthetic_biased_sampled_ref(' + str(real_img_idx) + ')_(' + str(text_id) + ')'
@@ -263,7 +272,7 @@ def do_evaluation(config, qualitative_analysis=True, quantitative_analysis=True,
                     if run_biased_sampling:
                         biased_sampling_results = model.sample_biased(session=sess, seq_len=seq_len,
                                                                       prev_state=inference_results[0]['state'],
-                                                                      prev_sample=stroke_sample)
+                                                                      prev_sample=reference_sample_in_img)
 
                         save_name = 'synthetic_biased_ref(' + str(real_img_idx) + ')_(' + str(text_id) + ')'
                         synthetic_sample = validation_dataset.undo_normalization(biased_sampling_results[0]['output_sample'][0], detrend_sample=False)
@@ -277,12 +286,11 @@ def do_evaluation(config, qualitative_analysis=True, quantitative_analysis=True,
                         synthetic_sample = validation_dataset.undo_normalization(unbiased_sampling_results[0]['output_sample'][0], detrend_sample=False)
                         if save_plots:
                             plot_eval_details(unbiased_sampling_results[0], synthetic_sample, config['eval_dir'], save_name)
-
     sess.close()
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-
     parser.add_argument('-S', '--model_save_dir', dest='model_save_dir', type=str, default='./runs/', help='path to main model save directory')
     parser.add_argument('-E', '--eval_dir', type=str, default='./runs_evaluation/', help='path to main log/output directory')
     parser.add_argument('-M', '--model_id', dest='model_id', type=str, help='model folder')
@@ -292,10 +300,8 @@ if __name__ == '__main__':
     parser.add_argument('-V', '--verbose', dest='verbose', type=int, default=1, help='Verbosity')
     args = parser.parse_args()
 
-    #config_dict = pickle.load(open(os.path.join(args.model_save_dir, args.model_id, 'config.pkl'), 'rb'))
     config_dict = json.load(open(os.path.abspath(os.path.join(args.model_save_dir, args.model_id, 'config.json')), 'r'))
-    # in case folder is renamed.
-    config_dict['model_dir'] = os.path.join(args.model_save_dir, args.model_id)
+    config_dict['model_dir'] = os.path.join(args.model_save_dir, args.model_id)  # in case the folder is renamed.
     config_dict['checkpoint_id'] = args.checkpoint_id
 
     if args.eval_dir is None:

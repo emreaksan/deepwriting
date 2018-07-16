@@ -1,6 +1,7 @@
 import tensorflow as tf
 import numpy as np
 
+
 def logli_normal_bivariate(x, mu, sigma, rho, reduce_sum=False):
     """
     Bivariate Gaussian log-likelihood. Rank of arguments is expected to be 3.
@@ -36,9 +37,10 @@ def logli_normal_bivariate(x, mu, sigma, rho, reduce_sum=False):
         else:
             return tf.reduce_sum(result, reduce_sum)
 
-def logli_normal_isotropic(x, mu, sigma, reduce_sum=False):
+
+def logli_normal_diag_cov(x, mu, sigma, reduce_sum=False):
     """
-    Isotropic Gaussian log-likelihood.
+    Log-likelihood of Gaussian with diagonal covariance matrix.
 
     Args:
         x:
@@ -49,7 +51,7 @@ def logli_normal_isotropic(x, mu, sigma, reduce_sum=False):
     Returns:
 
     """
-    with tf.name_scope('logli_normal_isotropic'):
+    with tf.name_scope('logli_normal_diag_cov'):
         ssigma2 = tf.maximum(1e-6, tf.square(sigma)*2)
         denom_log = tf.log(tf.sqrt(np.pi * ssigma2))
         norm = tf.square(tf.subtract(x, mu))
@@ -75,9 +77,7 @@ def logli_bernoulli(x, theta, reduce_sum=False):
 
     """
     with tf.name_scope('logli_bernoulli'):
-        # return tf.reduce_sum(tf.reduce_mean(tf.multiply(y, tf.log(tf.maximum(1e-9, theta))) + tf.multiply((1-y), tf.log(tf.maximum(1e-9, 1-theta))), 2), 1)
-        result = (
-        tf.multiply(x, tf.log(tf.maximum(1e-9, theta))) + tf.multiply((1 - x), tf.log(tf.maximum(1e-9, 1 - theta))))
+        result = (tf.multiply(x, tf.log(tf.maximum(1e-9, theta))) + tf.multiply((1 - x), tf.log(tf.maximum(1e-9, 1 - theta))))
 
         if reduce_sum is False:
             return result

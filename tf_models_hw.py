@@ -7,10 +7,11 @@ from tf_models import VRNN, VRNNGMM
 from tf_rnn_cells import *
 
 """
-If opencv is installed, then you can visualize images of real and synthetic handwriting samples in tensorboard.  
+If opencv is installed, then you can visualize images of real and synthetic handwriting samples in tensorboard. 
+Note that the experiment folder takes much more space (~2-3 GB). 
 """
-VISUAL_MODE = False
 from importlib import util as importlib_util
+VISUAL_MODE = False
 if importlib_util.find_spec("cv2") is not None:
     from visualize_hw import draw_stroke_cv2
     from utils_visualization import plot_and_get_image
@@ -31,11 +32,11 @@ class HandwritingVRNNModel(VRNN):
 
         # See `create_image_summary` method for details.
         self.img_summary_entries = []
-
+        self.ops_img_summary = {}
+        self.use_img_summary = self.config.get("img_summary_every_step", 0) > 0 and VISUAL_MODE
 
     def get_constructors(self):
         self.vrnn_cell_constructor = getattr(sys.modules[__name__], self.config['vrnn_cell_cls'])
-
 
     def build_predictions_layer(self):
         # Assign rnn outputs.
@@ -70,17 +71,19 @@ class HandwritingVRNNModel(VRNN):
         # Mask for precise loss calculation.
         self.seq_loss_mask = tf.expand_dims(tf.sequence_mask(lengths=self.input_seq_length, maxlen=tf.reduce_max(self.input_seq_length), dtype=tf.float32), -1)
 
-
     def build_loss(self):
         if self.is_training or self.is_validation:
             targets_mu = self.target_pieces[0]
             targets_pen = self.target_pieces[1]
 
-            if not self.reconstruction_loss_key in self.ops_loss:
+            if self.reconstruction_loss_key not in self.ops_loss:
                 with tf.name_scope('reconstruction_loss'):
-                    # Gaussian log likelihood loss.
-                    if self.reconstruction_loss == 'nll_normal':
+                    # Gaussian log likelihood loss (bivariate)
+                    if self.reconstruction_loss == 'nll_normal_bi':
                         self.ops_loss[self.reconstruction_loss_key] = -self.reconstruction_loss_weight*self.reduce_loss_func(self.seq_loss_mask*tf_loss.logli_normal_bivariate(targets_mu, self.out_mu, self.out_sigma, self.out_rho, reduce_sum=False))
+                    # Gaussian log likelihood loss (diagonal covariance)
+                    elif self.reconstruction_loss == 'nll_normal_diag':
+                        self.ops_loss[self.reconstruction_loss_key] = -self.reconstruction_loss_weight*self.reduce_loss_func(self.seq_loss_mask*tf_loss.logli_normal_diag_cov(targets_mu, self.out_mu, self.out_sigma, reduce_sum=False))
                     # L1 norm.
                     elif self.reconstruction_loss == "l1":
                         self.ops_loss[self.reconstruction_loss_key] = self.reconstruction_loss_weight*self.reduce_loss_func(self.seq_loss_mask*tf.losses.absolute_difference(targets_mu, self.out_mu, reduction='none'))
@@ -90,7 +93,7 @@ class HandwritingVRNNModel(VRNN):
                     else:
                         raise Exception("Undefined loss.")
 
-            if not "loss_pen" in self.ops_loss:
+            if "loss_pen" not in self.ops_loss:
                 with tf.name_scope('pen_reconstruction_loss'):
                     # Bernoulli loss for pen information.
                     self.ops_loss['loss_pen'] = -self.pen_loss_weight*self.reduce_loss_func(self.seq_loss_mask*tf_loss.logli_bernoulli(targets_pen, self.out_pen, reduce_sum=False))
@@ -127,49 +130,49 @@ class HandwritingVRNNModel(VRNN):
         def stroke_img_func(img_data):
             return draw_stroke_cv2(undo_preprocessing_func(img_data), factor=1)
 
-        # Make a separation between different types of images and provide corresponding functionality.
-        stroke_img_entry = {}
-        stroke_img_entry['img_shape'] = img_stroke_shape
-        stroke_img_entry['num_img'] = img_stroke_shape[0]
-        stroke_img_entry['data_type'] = tf.uint8
-        stroke_img_entry['post_processing_func'] = stroke_img_func
-        stroke_img_entry['ops'] = {}
-        stroke_img_entry['ops']['stroke_output'] = self.output_sample
-        if self.is_sampling is False:
-            stroke_img_entry['ops']['stroke_input'] = self.input_sample
+        if self.use_img_summary:
+            # Make a separation between different types of images and provide corresponding functionality.
+            stroke_img_entry = {}
+            stroke_img_entry['img_shape'] = img_stroke_shape
+            stroke_img_entry['num_img'] = img_stroke_shape[0]
+            stroke_img_entry['data_type'] = tf.uint8
+            stroke_img_entry['post_processing_func'] = stroke_img_func
+            stroke_img_entry['ops'] = {}
+            stroke_img_entry['ops']['stroke_output'] = self.output_sample
+            if self.is_sampling is False:
+                stroke_img_entry['ops']['stroke_input'] = self.input_sample
 
-        norm_plot_img_entry = {}
-        norm_plot_img_entry['img_shape'] = img_norm_shape
-        norm_plot_img_entry['num_img'] = img_norm_shape[0]
-        norm_plot_img_entry['data_type'] = tf.uint8
-        norm_plot_img_entry['post_processing_func'] = norm_plot_img_func
-        norm_plot_img_entry['ops'] = {}
-        norm_plot_img_entry['ops']['norm_q_mu'] = self.norm_q_mu
-        norm_plot_img_entry['ops']['norm_p_mu'] = self.norm_p_mu
+            norm_plot_img_entry = {}
+            norm_plot_img_entry['img_shape'] = img_norm_shape
+            norm_plot_img_entry['num_img'] = img_norm_shape[0]
+            norm_plot_img_entry['data_type'] = tf.uint8
+            norm_plot_img_entry['post_processing_func'] = norm_plot_img_func
+            norm_plot_img_entry['ops'] = {}
+            norm_plot_img_entry['ops']['norm_q_mu'] = self.norm_q_mu
+            norm_plot_img_entry['ops']['norm_p_mu'] = self.norm_p_mu
 
-        self.img_summary_entries.append(stroke_img_entry)
-        self.img_summary_entries.append(norm_plot_img_entry)
-        # Graph nodes to be evaluated by calling session.run
-        self.ops_img_summary = {}
-        # Create placeholders and containers for intermediate results.
-        self.container_img = {}
-        self.container_img_placeholders = {}
-        self.container_img_feed_dict = {}
+            self.img_summary_entries.append(stroke_img_entry)
+            self.img_summary_entries.append(norm_plot_img_entry)
+            # Graph nodes to be evaluated by calling session.run
+            self.ops_img_summary = {}
+            # Create placeholders and containers for intermediate results.
+            self.container_img = {}
+            self.container_img_placeholders = {}
+            self.container_img_feed_dict = {}
 
-        for summary_dict in self.img_summary_entries:
-            for op_name, summary_op in summary_dict['ops'].items():
-                self.ops_img_summary[op_name] = summary_op
-                # To store images.
-                self.container_img[op_name] = np.zeros(summary_dict['img_shape'])
-                # To pass images to summary
-                self.container_img_placeholders[op_name] = tf.placeholder(summary_dict['data_type'], summary_dict['img_shape'])
-                # Summary.
-                tf.summary.image(op_name, self.container_img_placeholders[op_name], collections=[self.mode+'_summary_img'], max_outputs=summary_dict['num_img'])
-                # Feed dictionary.
-                self.container_img_feed_dict[self.container_img_placeholders[op_name]] = 0
+            for summary_dict in self.img_summary_entries:
+                for op_name, summary_op in summary_dict['ops'].items():
+                    self.ops_img_summary[op_name] = summary_op
+                    # To store images.
+                    self.container_img[op_name] = np.zeros(summary_dict['img_shape'])
+                    # To pass images to summary
+                    self.container_img_placeholders[op_name] = tf.placeholder(summary_dict['data_type'], summary_dict['img_shape'])
+                    # Summary.
+                    tf.summary.image(op_name, self.container_img_placeholders[op_name], collections=[self.mode+'_summary_img'], max_outputs=summary_dict['num_img'])
+                    # Feed dictionary.
+                    self.container_img_feed_dict[self.container_img_placeholders[op_name]] = 0
 
-        self.img_summary = tf.summary.merge_all(self.mode+'_summary_img')
-
+            self.img_summary = tf.summary.merge_all(self.mode+'_summary_img')
 
     def get_image_summary(self, session, ops_img_summary_evaluated=None, seq_len=500):
         """
@@ -183,21 +186,23 @@ class HandwritingVRNNModel(VRNN):
         Returns:
             summary entry for summary_writer.
         """
+        if self.use_img_summary:
+            if ops_img_summary_evaluated is None: # Inference mode.
+                ops_img_summary_evaluated = self.sample_unbiased(session, seq_len=seq_len, ops_eval=self.ops_img_summary)[0]
 
-        if ops_img_summary_evaluated is None: # Inference mode.
-            ops_img_summary_evaluated = self.sample_unbiased(session, seq_len=seq_len, ops_eval=self.ops_img_summary)[0]
+            # Create images.
+            for summary_dict in self.img_summary_entries:
+                post_processing_func = summary_dict['post_processing_func']
+                for op_name, summary_op in summary_dict['ops'].items():
+                    for i in range(summary_dict['num_img']):
+                        self.container_img[op_name][i] = np.float32(post_processing_func(ops_img_summary_evaluated[op_name][i]))
+                    self.container_img_feed_dict[self.container_img_placeholders[op_name]] = self.container_img[op_name]
 
-        # Create images.
-        for summary_dict in self.img_summary_entries:
-            post_processing_func = summary_dict['post_processing_func']
-            for op_name, summary_op in summary_dict['ops'].items():
-                for i in range(summary_dict['num_img']):
-                    self.container_img[op_name][i] = np.float32(post_processing_func(ops_img_summary_evaluated[op_name][i]))
-                self.container_img_feed_dict[self.container_img_placeholders[op_name]] = self.container_img[op_name]
+            img_summary = session.run(self.img_summary, self.container_img_feed_dict)
 
-        img_summary = session.run(self.img_summary, self.container_img_feed_dict)
-
-        return img_summary
+            return img_summary
+        else:
+            return None
 
 
 class HandwritingVRNNGmmModel(VRNNGMM, HandwritingVRNNModel):
@@ -227,6 +232,8 @@ class HandwritingVRNNGmmModel(VRNNGMM, HandwritingVRNNModel):
 
         # See `create_image_summary` method for details.
         self.img_summary_entries = []
+        self.ops_img_summary = {}
+        self.use_img_summary = self.config.get("img_summary_every_step", 0) > 0 and VISUAL_MODE
 
     def get_constructors(self):
         self.vrnn_cell_constructor = getattr(sys.modules[__name__], self.config['vrnn_cell_cls'])
@@ -277,7 +284,7 @@ class HandwritingVRNNGmmModel(VRNNGMM, HandwritingVRNNModel):
         if self.is_gmm_active:
             self.ops_scalar_summary["mean_gmm_sigma"] = tf.reduce_mean(self.gmm_sigma)
 
-        # Mask for precise loss calculation.
+        # Sequence mask for precise loss calculation.
         self.seq_loss_mask = tf.expand_dims(tf.sequence_mask(lengths=self.input_seq_length, maxlen=tf.reduce_max(self.input_seq_length), dtype=tf.float32), -1)
 
     def build_loss(self):
@@ -286,11 +293,14 @@ class HandwritingVRNNGmmModel(VRNNGMM, HandwritingVRNNModel):
             targets_pen = self.target_pieces[2]
             targets_eoc = self.target_pieces[3]
 
-            if not self.reconstruction_loss_key in self.ops_loss:
+            if self.reconstruction_loss_key not in self.ops_loss:
                 with tf.name_scope('reconstruction_loss'):
-                    # Gaussian log likelihood loss.
-                    if self.reconstruction_loss == 'nll_normal':
+                    # Gaussian log likelihood loss (bivariate)
+                    if self.reconstruction_loss == 'nll_normal_bi':
                         self.ops_loss[self.reconstruction_loss_key] = -self.reconstruction_loss_weight*self.reduce_loss_func(self.seq_loss_mask*tf_loss.logli_normal_bivariate(targets_mu, self.out_mu, self.out_sigma, self.out_rho, reduce_sum=False))
+                    # Gaussian log likelihood loss (diagonal covariance)
+                    elif self.reconstruction_loss == 'nll_normal_diag':
+                        self.ops_loss[self.reconstruction_loss_key] = -self.reconstruction_loss_weight*self.reduce_loss_func(self.seq_loss_mask*tf_loss.logli_normal_diag_cov(targets_mu, self.out_mu, self.out_sigma, reduce_sum=False))
                     # L1 norm.
                     elif self.reconstruction_loss == "l1":
                         self.ops_loss[self.reconstruction_loss_key] = self.reconstruction_loss_weight*self.reduce_loss_func(self.seq_loss_mask*tf.losses.absolute_difference(targets_mu, self.out_mu, reduction='none'))
@@ -300,17 +310,16 @@ class HandwritingVRNNGmmModel(VRNNGMM, HandwritingVRNNModel):
                     else:
                         raise Exception("Undefined loss.")
 
-            if not "loss_pen" in self.ops_loss:
+            if "loss_pen" not in self.ops_loss:
                 with tf.name_scope('pen_reconstruction_loss'):
                     # Bernoulli loss for pen information.
                     self.ops_loss['loss_pen'] = -self.pen_loss_weight*self.reduce_loss_func(self.seq_loss_mask*tf_loss.logli_bernoulli(targets_pen, self.out_pen, reduce_sum=False))
 
-            if not "loss_eoc" in self.ops_loss:
+            if "loss_eoc" not in self.ops_loss:
                 with tf.name_scope('eoc_loss'):
                     self.ops_loss['loss_eoc'] = -self.eoc_loss_weight*self.reduce_loss_func(self.seq_loss_mask*tf_loss.logli_bernoulli(targets_eoc, self.out_eoc, reduce_sum=False))
 
             VRNNGMM.build_loss(self)
-
 
     ########################################
     # Evaluation methods.
@@ -334,11 +343,11 @@ class HandwritingVRNNGmmModel(VRNNGMM, HandwritingVRNNModel):
         if ops_eval is None:
             ops_eval = self.ops_evaluation
         # These ops are required by the sampling function.
-        if not ('out_eoc' in ops_eval):
+        if 'out_eoc' not in ops_eval:
             ops_eval['out_eoc'] = self.out_eoc
-        if not ('output_sample' in ops_eval):
+        if 'output_sample' not in ops_eval:
             ops_eval['output_sample'] = self.output_sample
-        if not ('state' in ops_eval):
+        if 'state' not in ops_eval:
             ops_eval['state'] = self.output_state
 
         # Since we draw one sample at a time, we need to accumulate the results.
@@ -473,7 +482,6 @@ class HandwritingVRNNGmmModel(VRNNGMM, HandwritingVRNNModel):
         cursive_threshold = kwargs.get('cursive_threshold', 0.10)
         use_sample_mean = kwargs.get('use_sample_mean', True)
 
-        # text="test, Function. Example", eoc_threshold=0.15, cursive_threshold=0.10, use_sample_mean=True
         prev_state = session.run(self.cell.zero_state(batch_size=1, dtype=tf.float32))
         output_container = self.sample_func(session, seq_len, prev_state, ops_eval, text, eoc_threshold, cursive_threshold, use_sample_mean)
 

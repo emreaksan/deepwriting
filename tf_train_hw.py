@@ -30,6 +30,7 @@ Model Training Script.
     Model keeps track of losses and report via `get_validation_summary` method.
 """
 
+
 def train(config):
     Model_cls = HandwritingVRNNGmmModel
     Dataset_cls = HandWritingDatasetConditionalTF
@@ -151,20 +152,20 @@ def train(config):
     else:
         raise Exception("Invalid learning rate type")
 
-
     optimizer = tf.train.AdamOptimizer(learning_rate)
     # Gradient clipping and a sanity check.
     grads = list(zip(tf.gradients(model.loss, tf.trainable_variables()), tf.trainable_variables()))
     grads_clipped = []
     with tf.name_scope("grad_clipping"):
         for grad, var in grads:
-            if config['grad_clip_by_norm'] > 0:
-                grads_clipped.append((tf.clip_by_norm(grad, config['grad_clip_by_norm']), var))
-            elif config['grad_clip_by_value'] > 0:
-                grads_clipped.append(
-                    (tf.clip_by_value(grad, -config['grad_clip_by_value'], -config['grad_clip_by_value']), var))
-            else:
-                grads_clipped.append((grad, var))
+            if grad is not None:
+                if config['grad_clip_by_norm'] > 0:
+                    grads_clipped.append((tf.clip_by_norm(grad, config['grad_clip_by_norm']), var))
+                elif config['grad_clip_by_value'] > 0:
+                    grads_clipped.append(
+                        (tf.clip_by_value(grad, -config['grad_clip_by_value'], -config['grad_clip_by_value']), var))
+                else:
+                    grads_clipped.append((grad, var))
     train_op = optimizer.apply_gradients(grads_and_vars=grads_clipped, global_step=global_step)
 
     init_op = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
@@ -177,7 +178,7 @@ def train(config):
         run_opts_metadata = tf.RunMetadata()
 
     # Create a saver for writing training checkpoints.
-    saver = tf.train.Saver(max_to_keep=2, save_relative_paths=True)
+    saver = tf.train.Saver(max_to_keep=1, save_relative_paths=True)
     if config['model_dir']:
         # If model directory already exists, continue training by restoring computation graph.
         # Restore variables.
@@ -222,9 +223,9 @@ def train(config):
 
     # Save configuration
     config['loss_weights']['kld_loss'] = kld_loss_weight_backup
-    # Pickle and json dump.
-    pickle.dump(config, open(os.path.join(config['model_dir'], 'config.pkl'), 'wb'))
     try:
+        # Pickle and json dump.
+        pickle.dump(config, open(os.path.join(config['model_dir'], 'config.pkl'), 'wb'))
         json.dump(config, open(os.path.join(config['model_dir'], 'config.json'), 'w'), indent=4, sort_keys=True)
     except:
         pass
@@ -249,7 +250,6 @@ def train(config):
             for i in range(256):
                 _ = sess.run(valid_staging_area.preload_op, feed_dict={}, options=run_opts, run_metadata=run_opts_metadata)
 
-
     for epoch in range(start_epoch, config['num_epochs']+1):
         for epoch_step in range(num_training_iterations):
             start_time = time.perf_counter()
@@ -259,7 +259,7 @@ def train(config):
                 ckpt_save_path = saver.save(sess, os.path.join(config['model_dir'], 'model'), global_step)
                 print("Model saved in file: %s"%ckpt_save_path)
 
-            if step%config['img_summary_every_step'] == 0:
+            if config['img_summary_every_step'] > 0 and step%config['img_summary_every_step'] == 0:
                 run_training_output = sess.run(training_run_ops_with_img_summary, feed_dict={}, options=run_opts, run_metadata=run_opts_metadata)
 
                 img_summary = model.get_image_summary(sess, ops_img_summary_evaluated=run_training_output[3], seq_len=500)
@@ -274,7 +274,7 @@ def train(config):
                 time_elapsed = (time.perf_counter() - start_time)/config['print_every_step']
                 model.log_loss(run_training_output[2], step, epoch, time_elapsed)
 
-            if step%config['img_summary_every_step'] == 0:
+            if config['img_summary_every_step'] > 0 and step%config['img_summary_every_step'] == 0:
                 sampling_img_summary = sampling_model.get_image_summary(sess, ops_img_summary_evaluated=None, seq_len=500)
                 summary_writer.add_summary(sampling_img_summary, step)
 
@@ -308,17 +308,16 @@ def train(config):
 
     sess.close()
 
-if __name__ == '__main__':
 
+if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-S', '--model_save_dir', type=str, default='./runs/', help='path to main model save directory')
-    parser.add_argument('-M', '--model_id', dest='model_id',  type=str, help='model folder')
-    parser.add_argument('--checkpoint_id', type=str, default=None, help='log and output directory')
+    parser.add_argument('-S', '--model_save_dir', type=str, default='./runs/', help='Path to main model save directory')
+    parser.add_argument('-M', '--model_id', dest='model_id',  type=str, help='Model folder. Set to continue training.')
+    parser.add_argument('--checkpoint_id', type=str, default=None, help='Log and output directory')
     args = parser.parse_args()
 
     if args.model_id is not None:
         # Restore
-        #config_dict = pickle.load(open(os.path.join(args.model_save_dir, args.model_id, 'config.pkl'), 'rb'))
         config_dict = json.load(open(os.path.abspath(os.path.join(args.model_save_dir, args.model_id, 'config.json')), 'r'))
         # in case folder is renamed.
         config_dict['model_dir'] = os.path.join(args.model_save_dir, args.model_id)
