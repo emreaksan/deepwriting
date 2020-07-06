@@ -3,7 +3,7 @@ Code for `DeepWriting: Making Digital Ink Editable via Deep Generative Modeling`
 
 [![Watch the video](https://img.youtube.com/vi/NVF-1csvVvc/0.jpg)](https://www.youtube.com/watch?v=NVF-1csvVvc)
 
-Implementation of conditional variational RNNs (C-VRNN).
+Implementation of conditional variational RNNs (C-VRNN) fow handwriting synthesis, generation, beautification and editing tasks.
 
 ## Dataset
 We collected data from 94 authors by using [IAMOnDB](http://www.fki.inf.unibe.ch/databases/iam-handwriting-database) corpus. After discarding noisy samples of IAMOnDB, we compiled a dataset of 294 authors, fully segmented. You can download our preprocessed data from [project page](https://ait.ethz.ch/projects/2018/deepwriting/downloads/deepwriting_dataset.tar.gz).
