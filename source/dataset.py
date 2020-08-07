@@ -18,7 +18,7 @@ class BaseDataset(object):
     Acts as a data container. Loads and parses data, and provides basic functionality.
     """
     def __init__(self, data_path):
-        self.data_dict = dict(np.load(data_path))
+        self.data_dict = dict(np.load(data_path, allow_pickle=True))
 
     @property
     def num_samples(self):
