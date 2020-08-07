@@ -48,6 +48,8 @@ python tf_evaluate_hw.py -S <path_to_save_experiment> -M <model_folder_name> -QL
 3. matplotlib
 4. OpenCV (pip install opencv-python is enough)
 5. svgwrite
+6. scikit
+7. sklearn
 
 ## Missing
 We are not planning to release demo interface.
