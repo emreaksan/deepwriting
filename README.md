@@ -6,6 +6,8 @@ Code for `DeepWriting: Making Digital Ink Editable via Deep Generative Modeling`
 Implementation of conditional variational RNNs (C-VRNN) fow handwriting synthesis, generation, beautification and editing tasks.
 
 ## Dataset
+(November 2021) We released json files includeing timestamp information and stroke-based segmentations.
+
 We collected data from 94 authors by using [IAMOnDB](http://www.fki.inf.unibe.ch/databases/iam-handwriting-database) corpus. After discarding noisy samples of IAMOnDB, we compiled a dataset of 294 authors, fully segmented. You can download our preprocessed data from [project page](https://ait.ethz.ch/projects/2018/deepwriting/downloads/deepwriting_dataset.tar.gz).
 
 The dataset is in compressed .npz format. Strokes, labels and statistics can be accessed by using <key, value> pairs. We split handwriting samples by end-of-characters such that each sample consists of ~300 strokes. Samples are then moved to the origin and represented by using the offset values between consecutive strokes.
