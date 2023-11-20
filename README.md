@@ -8,7 +8,7 @@ Implementation of conditional variational RNNs (C-VRNN) fow handwriting synthesi
 ## Dataset
 (November 2021) We released json files includeing timestamp information and stroke-based segmentations.
 
-We collected data from 94 authors by using [IAMOnDB](http://www.fki.inf.unibe.ch/databases/iam-handwriting-database) corpus. After discarding noisy samples of IAMOnDB, we compiled a dataset of 294 authors, fully segmented. You can download our preprocessed data from [project page](https://ait.ethz.ch/projects/2018/deepwriting/downloads/deepwriting_dataset.tar.gz).
+We collected data from 94 authors by using [IAMOnDB](http://www.fki.inf.unibe.ch/databases/iam-handwriting-database) corpus. After discarding noisy samples of IAMOnDB, we compiled a dataset of 294 authors, fully segmented. You can download our [preprocessed data](https://files.ait.ethz.ch/projects/deepwriting/deepwriting_dataset.zip). For the raw dataset, license and other information, please visit our [project page](https://ait.ethz.ch/deepwriting).
 
 The dataset is in compressed .npz format. Strokes, labels and statistics can be accessed by using <key, value> pairs. We split handwriting samples by end-of-characters such that each sample consists of ~300 strokes. Samples are then moved to the origin and represented by using the offset values between consecutive strokes.
 
@@ -36,7 +36,7 @@ python tf_train_hw.py -S <path_to_save_experiment> -M <model_folder_name>
 ```
 
 ## Evaluating Model
-1. You can either train a model or download our pretrained model from [project page](https://ait.ethz.ch/projects/2018/deepwriting/downloads/tf-1514981744-deepwriting_synthesis_model.tar.gz).
+1. You can either train a model or download our [pretrained model](https://files.ait.ethz.ch/projects/deepwriting/tf-1514981744-deepwriting_synthesis_model.tar.gz).
 2. You can run
 ```
 python tf_evaluate_hw.py -S <path_to_save_experiment> -M <model_folder_name> -QL
